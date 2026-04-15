@@ -16,6 +16,7 @@ from src.config import settings
 from src.database import init_db, close_db, DatabaseManager, get_db
 from src.utils.logger import setup_logging, get_logger, correlation_id_var, generate_correlation_id
 from src.utils.errors import RegRadarException
+from src.scraper.runner import initialize_scheduler, shutdown_scheduler
 
 logger = get_logger(__name__)
 
@@ -38,6 +39,11 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info("Database initialized successfully")
 
+        # Initialize scheduler for background jobs
+        if settings.environment == "production":
+            await initialize_scheduler()
+            logger.info("Scheduler initialized")
+
         logger.info("RegRadar API Ready")
         logger.info("=" * 60)
 
@@ -53,6 +59,11 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
 
     try:
+        # Shutdown scheduler
+        if settings.environment == "production":
+            await shutdown_scheduler()
+            logger.info("Scheduler shut down")
+
         await close_db()
         logger.info("Database connection closed")
 
