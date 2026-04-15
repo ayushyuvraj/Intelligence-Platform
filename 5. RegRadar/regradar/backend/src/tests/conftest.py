@@ -10,9 +10,22 @@ Provides reusable fixtures for testing:
 
 import pytest
 import asyncio
+import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
+
+# Set up test environment variables BEFORE importing app
+os.environ["ENVIRONMENT"] = "test"
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+os.environ["API_HOST"] = "localhost"
+os.environ["API_PORT"] = "8000"
+os.environ["BACKEND_URL"] = "http://localhost:8000"
+os.environ["FRONTEND_URL"] = "http://localhost:3000"
+os.environ["DEBUG"] = "true"
+os.environ["GEMINI_API_KEY"] = "test-key-for-testing-only"
+os.environ["LOG_LEVEL"] = "INFO"
+
 from fastapi.testclient import TestClient
 from src.main import app
 from src.models import Base
@@ -75,6 +88,13 @@ def test_client(test_db_session: Session) -> TestClient:
 
     # Reset overrides
     app.dependency_overrides.clear()
+
+
+# Alias for easier use in tests
+@pytest.fixture(scope="function")
+def db(test_db_session: Session) -> Session:
+    """Alias for test_db_session."""
+    return test_db_session
 
 
 @pytest.fixture
