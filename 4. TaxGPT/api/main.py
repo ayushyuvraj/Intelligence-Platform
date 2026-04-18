@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from api.routers import health, qa, mapper, profile, notice, ingestion
+from api.routers import health, qa, mapper, profile, notice, ingestion, compare
 
 
 @asynccontextmanager
@@ -23,6 +23,15 @@ async def lifespan(app: FastAPI):
         print("[OK] Section mapper initialized at startup")
     except Exception as e:
         print(f"[WARN] Section mapper initialization failed: {e}")
+
+    # Warm up section extractor in background thread (PDF scan is slow)
+    import asyncio
+    try:
+        from api.utils.section_extractor import warm_up
+        asyncio.get_event_loop().run_in_executor(None, warm_up)
+        print("[OK] Section extractor warm-up started in background")
+    except Exception as e:
+        print(f"[WARN] Section extractor warm-up failed: {e}")
 
     yield
 
@@ -61,6 +70,7 @@ def create_app() -> FastAPI:
     app.include_router(profile.router)
     app.include_router(notice.router)
     app.include_router(ingestion.router)
+    app.include_router(compare.router)
 
     # Root endpoint
     @app.get("/")
