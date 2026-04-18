@@ -52,7 +52,7 @@ class Settings(BaseSettings):
     sender_email: str = "noreply@regradar.com"
 
     # Security
-    api_key_scraper: str = "dev_key_change_in_prod"
+    api_key_scraper: str
     cors_origins: str = "http://localhost:3000"
 
     class Config:

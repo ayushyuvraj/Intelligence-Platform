@@ -1,0 +1,179 @@
+#!/bin/bash
+# Pre-commit hook for RegRadar
+# Runs before each commit to ensure code quality
+# Setup: git config core.hooksPath .claude/hooks && chmod +x .claude/hooks/pre-commit
+
+set -e
+
+echo "🔍 Pre-commit quality checks..."
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Counters
+PASSED=0
+FAILED=0
+
+# 1. Format Python Code
+if command -v black &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Formatting Python code..."
+    if black src/ --quiet 2>/dev/null; then
+        echo -e " ${GREEN}✓${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+    git add src/ 2>/dev/null || true
+else
+    echo -e "${YELLOW}⚠ Black not installed (install with: pip install black)${NC}"
+fi
+
+# 2. Format JavaScript Code
+if command -v prettier &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Formatting JavaScript code..."
+    if prettier --write frontend/src/ --log-level=error 2>/dev/null; then
+        echo -e " ${GREEN}✓${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+    git add frontend/src/ 2>/dev/null || true
+else
+    echo -e "${YELLOW}⚠ Prettier not installed (install with: npm install -D prettier)${NC}"
+fi
+
+# 3. Lint Python Code
+if command -v pylint &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Linting Python code..."
+    if pylint src/ --exit-zero --rcfile=.pylintrc 2>/dev/null | grep -q "Your code"; then
+        SCORE=$(pylint src/ --rcfile=.pylintrc 2>/dev/null | grep "Your code" | grep -o "[0-9.]*" | head -1)
+        if (( $(echo "$SCORE >= 8.0" | bc -l) )); then
+            echo -e " ${GREEN}✓${NC} (Score: $SCORE/10)"
+            PASSED=$((PASSED + 1))
+        else
+            echo -e " ${RED}✗${NC} (Score: $SCORE/10 - below 8.0)"
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ Pylint not installed (install with: pip install pylint)${NC}"
+fi
+
+# 4. Lint JavaScript Code
+if command -v eslint &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Linting JavaScript code..."
+    if eslint frontend/src/ --fix 2>/dev/null; then
+        echo -e " ${GREEN}✓${NC}"
+        PASSED=$((PASSED + 1))
+        git add frontend/src/ 2>/dev/null || true
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ ESLint not installed (install with: npm install -D eslint)${NC}"
+fi
+
+# 5. Type Check Python
+if command -v mypy &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Type checking Python..."
+    if mypy src/ --ignore-missing-imports 2>/dev/null; then
+        echo -e " ${GREEN}✓${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ MyPy not installed (install with: pip install mypy)${NC}"
+fi
+
+# 6. Check for secrets
+echo -ne "${YELLOW}→${NC} Checking for hardcoded secrets..."
+if grep -r "sk-" src/ 2>/dev/null || \
+   grep -r "password" src/ 2>/dev/null || \
+   grep -r "api_key" src/ 2>/dev/null | grep -v "\.env"; then
+    echo -e " ${RED}✗${NC} (Hardcoded secrets detected)"
+    FAILED=$((FAILED + 1))
+else
+    echo -e " ${GREEN}✓${NC}"
+    PASSED=$((PASSED + 1))
+fi
+
+# 7. Check for console.log in production code
+echo -ne "${YELLOW}→${NC} Checking for console.log in production code..."
+if grep -r "console\.log\|print(" src/ frontend/src/ 2>/dev/null | grep -v test; then
+    echo -e " ${RED}✗${NC} (console.log found in production code)"
+    FAILED=$((FAILED + 1))
+else
+    echo -e " ${GREEN}✓${NC}"
+    PASSED=$((PASSED + 1))
+fi
+
+# 8. Run Python Tests
+if command -v pytest &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Running Python tests..."
+    if pytest src/tests/ --quiet --tb=short 2>/dev/null; then
+        echo -e " ${GREEN}✓${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ Pytest not installed (install with: pip install pytest)${NC}"
+fi
+
+# 9. Check Test Coverage
+if command -v pytest &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Checking test coverage (minimum 80%)..."
+    COVERAGE=$(pytest src/tests/ --cov=src --cov-report=term-missing 2>/dev/null | grep TOTAL | awk '{print $NF}' | sed 's/%//') || true
+    if [ -z "$COVERAGE" ]; then
+        echo -e " ${YELLOW}⚠${NC} (Could not calculate coverage)"
+    elif (( $(echo "$COVERAGE >= 80" | bc -l) )); then
+        echo -e " ${GREEN}✓${NC} ($COVERAGE%)"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e " ${RED}✗${NC} ($COVERAGE% - below 80%)"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ Pytest not installed${NC}"
+fi
+
+# 10. Run JavaScript Tests
+if command -v npm &> /dev/null; then
+    echo -ne "${YELLOW}→${NC} Running JavaScript tests..."
+    if npm test --prefix frontend/ --silent 2>/dev/null; then
+        echo -e " ${GREEN}✓${NC}"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e " ${RED}✗${NC}"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "${YELLOW}⚠ npm not installed${NC}"
+fi
+
+# Summary
+echo ""
+echo "═════════════════════════════════════════"
+if [ $FAILED -eq 0 ]; then
+    echo -e "${GREEN}✓ All checks passed! ($PASSED/$PASSED)${NC}"
+    echo "Ready to commit."
+    echo "═════════════════════════════════════════"
+    exit 0
+else
+    echo -e "${RED}✗ Some checks failed ($PASSED passed, $FAILED failed)${NC}"
+    echo "Please fix the issues above and try again."
+    echo "═════════════════════════════════════════"
+    exit 1
+fi

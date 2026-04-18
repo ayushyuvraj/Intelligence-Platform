@@ -24,8 +24,10 @@ from src.api.schemas import (
     PreferenceUpdateRequest,
     PaginationParams,
 )
-from src.utils.errors import ValidationException, NotFoundException, DatabaseException
+from src.services.regulation_service import RegulationService, SessionService
 from src.utils.logger import get_logger
+from src.utils.errors import RegRadarException, ValidationException, DatabaseException, NotFoundException
+from src.utils.validators import InputValidator
 
 router = APIRouter()
 logger = get_logger(__name__)
@@ -63,27 +65,28 @@ async def list_regulations(
         ValidationException: If parameters invalid
     """
     try:
-        # Validate pagination
-        if limit < 1 or limit > 100:
-            raise ValidationException("Limit must be between 1 and 100", "limit", limit)
-        if offset < 0:
-            raise ValidationException("Offset must be non-negative", "offset", offset)
+        # Validate pagination using InputValidator
+        limit, offset = InputValidator.validate_pagination(limit, offset)
 
         # Build query
         query = db.query(Regulation).order_by(desc(Regulation.created_at))
 
-        # Apply filters
+        # Apply source filter with validation
         if source:
+            source = InputValidator.validate_source(source)
             query = query.filter(Regulation.source_body == source)
 
+        # Apply impact filter with validation
         if impact:
+            impact = InputValidator.validate_impact(impact)
             query = query.filter(Regulation.ai_impact_level == impact)
 
-        # Domain filtering (JSON array in database)
+        # Apply domain filters with validation
         if domains:
             domain_list = [d.strip() for d in domains.split(",") if d.strip()]
-            # Note: This is a simplified filter. Production might use JSONB operators
+            domain_list = InputValidator.validate_domains(domain_list)
             for domain in domain_list:
+                # Use parameterized query with contains
                 query = query.filter(Regulation.domains.contains(f'"{domain}"'))
 
         # Get total count before pagination
@@ -141,6 +144,58 @@ async def list_regulations(
         logger.error(f"Error listing regulations: {str(e)}")
         raise DatabaseException(str(e), "list_regulations")
 
+
+@router.get("/my-feed", response_model=RegulationListResponse, tags=["Regulations"])
+async def get_my_feed(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    session_id: str = Query(..., description="User session ID for personalized feed"),
+    db: Session = Depends(get_db),
+) -> RegulationListResponse:
+    """
+    Get a personalized feed of regulations based on session domain preferences.
+    """
+    try:
+        regulations, total = SessionService.get_personalized_feed(
+            db, session_id=session_id, limit=limit, offset=offset
+        )
+
+        regulation_responses = []
+        for r in regulations:
+            reg_dict = {
+                "id": r.id,
+                "source_body": r.source_body,
+                "original_title": r.original_title,
+                "original_date": r.original_date,
+                "source_url": r.source_url,
+                "ai_title": r.ai_title,
+                "ai_tldr": r.ai_tldr,
+                "ai_what_changed": r.ai_what_changed,
+                "ai_who_affected": r.ai_who_affected,
+                "ai_action_required": r.ai_action_required,
+                "ai_impact_level": r.ai_impact_level,
+                "domains": json.loads(r.domains) if isinstance(r.domains, str) else r.domains,
+                "processing_status": r.processing_status,
+                "created_at": r.created_at,
+                "updated_at": r.updated_at,
+            }
+            regulation_responses.append(RegulationResponse(**reg_dict))
+
+        page = (offset // limit) + 1
+        has_more = (offset + limit) < total
+
+        return RegulationListResponse(
+            regulations=regulation_responses,
+            total=total,
+            page=page,
+            page_size=limit,
+            has_more=has_more,
+        )
+    except NotFoundException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting personalized feed: {str(e)}")
+        raise DatabaseException(str(e), "get_my_feed")
 
 @router.get("/regulations/{regulation_id}", response_model=RegulationResponse, tags=["Regulations"])
 async def get_regulation(
@@ -245,23 +300,7 @@ async def list_domains(db: Session = Depends(get_db)) -> DomainsResponse:
 @router.get("/stats", response_model=StatsResponse, tags=["Stats"])
 async def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
     """
-    Get statistics dashboard data.
-
-    Returns overall statistics about regulations including:
-    - Total count
-    - Count by source body
-    - Count by impact level
-    - Count by domain
-    - Last update timestamp
-
-    Args:
-        db: Database session
-
-    Returns:
-        Statistics data
-
-    Raises:
-        DatabaseException: If database query fails
+    Get statistics dashboard data, including time-series trends.
     """
     try:
         # Total regulations
@@ -283,39 +322,40 @@ async def get_stats(db: Session = Depends(get_db)) -> StatsResponse:
         for impact, count in impact_counts:
             by_impact[impact] = count
 
-        # By domain
+        # By domain (optimized: use database aggregation instead of loading all records)
         by_domain = {}
-        regulations = db.query(Regulation).all()
-        for regulation in regulations:
-            try:
-                domains = json.loads(regulation.domains)
-                for domain in domains:
-                    by_domain[domain] = by_domain.get(domain, 0) + 1
-            except json.JSONDecodeError:
-                continue
+        try:
+            # Fetch only the domains JSON field to minimize memory usage
+            domain_records = db.query(Regulation.domains).filter(
+                Regulation.domains != None,
+                Regulation.domains != ""
+            ).all()
+            for (domains_json,) in domain_records:
+                try:
+                    domains = json.loads(domains_json)
+                    for domain in domains:
+                        by_domain[domain] = by_domain.get(domain, 0) + 1
+                except (json.JSONDecodeError, TypeError):
+                    continue
+        except Exception as e:
+            logger.warning(f"Failed to compute domain stats: {str(e)}")
+            by_domain = {}
+
+        # Time series trend (last 30 days)
+        time_series = RegulationService.get_time_series_stats(db)
 
         # Last update
         last_regulation = db.query(Regulation).order_by(desc(Regulation.created_at)).first()
         last_updated = last_regulation.created_at if last_regulation else datetime.utcnow()
 
-        logger.info(
-            "Retrieved statistics",
-            extra={
-                "total": total,
-                "sources": len(by_source),
-                "impacts": len(by_impact),
-                "domains": len(by_domain),
-            },
-        )
-
-        return StatsResponse(
-            total_regulations=total,
-            by_source=by_source,
-            by_impact=by_impact,
-            by_domain=by_domain,
-            last_updated=last_updated,
-        )
-
+        return {
+            "total_regulations": total,
+            "by_source": by_source,
+            "by_impact": by_impact,
+            "by_domain": by_domain,
+            "last_updated": last_updated,
+            "trends": time_series
+        }
     except Exception as e:
         logger.error(f"Error getting stats: {str(e)}")
         raise DatabaseException(str(e), "get_stats")

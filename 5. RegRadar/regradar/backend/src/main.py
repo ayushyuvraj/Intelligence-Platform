@@ -92,30 +92,40 @@ async def correlation_id_middleware(request: Request, call_next):
         correlation_id = generate_correlation_id()
 
     correlation_id_var.set(correlation_id)
+    request.state.correlation_id = correlation_id
 
     response = await call_next(request)
     response.headers["X-Correlation-ID"] = correlation_id
     return response
 
 
-# Middleware: Request logging
+# Middleware: Request logging with security context
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
-    """Log all HTTP requests and responses."""
+    """Log all HTTP requests and responses with security context."""
     start_time = time.time()
+    client_host = request.client.host if request.client else "unknown"
 
     response = await call_next(request)
 
     process_time = time.time() - start_time
-    logger.info(
-        f"{request.method} {request.url.path}",
-        extra={
-            "method": request.method,
-            "path": request.url.path,
-            "status_code": response.status_code,
-            "process_time_ms": int(process_time * 1000),
-        },
-    )
+    status_code = response.status_code
+
+    log_context = {
+        "method": request.method,
+        "path": request.url.path,
+        "status_code": status_code,
+        "process_time_ms": int(process_time * 1000),
+        "client_ip": client_host,
+    }
+
+    # Log with appropriate level based on status code
+    if status_code >= 500:
+        logger.error(f"{request.method} {request.url.path} {status_code}", extra=log_context)
+    elif status_code >= 400:
+        logger.warning(f"{request.method} {request.url.path} {status_code}", extra=log_context)
+    else:
+        logger.info(f"{request.method} {request.url.path} {status_code}", extra=log_context)
 
     return response
 
@@ -128,23 +138,29 @@ async def error_handler_middleware(request: Request, call_next):
         response = await call_next(request)
         return response
     except RegRadarException as e:
+        correlation_id = getattr(request.state, "correlation_id", "unknown")
         logger.error(
             f"Application error: {e.message}",
             extra={
                 "error_code": e.error_code,
                 "status_code": e.status_code,
+                "correlation_id": correlation_id,
                 "details": e.details,
             },
         )
+        response_dict = e.to_dict()
+        response_dict["correlation_id"] = correlation_id
         return JSONResponse(
             status_code=e.status_code,
-            content=e.to_dict(),
+            content=response_dict,
         )
     except Exception as e:
+        correlation_id = getattr(request.state, "correlation_id", "unknown")
         logger.error(
             f"Unexpected error: {str(e)}",
             extra={
                 "error_type": type(e).__name__,
+                "correlation_id": correlation_id,
             },
         )
         return JSONResponse(
@@ -153,6 +169,7 @@ async def error_handler_middleware(request: Request, call_next):
                 "error": "Internal server error",
                 "error_code": "INTERNAL_SERVER_ERROR",
                 "status_code": 500,
+                "correlation_id": correlation_id,
             },
         )
 

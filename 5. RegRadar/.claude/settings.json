@@ -1,0 +1,246 @@
+{
+  "statusLine": {
+    "type": "command",
+    "command": "bash \"D:/Apps/My Experiments/5. RegRadar/.claude/statusline-command.sh\""
+  },
+
+  "project_name": "RegRadar - AI-Powered Regulatory Intelligence for India",
+  "project_description": "Production-grade regulatory change intelligence platform with elite quality standards",
+  "version": "1.0.0",
+
+  "model": {
+    "default": "claude-opus-4-6",
+    "fallback": "claude-sonnet-4-6",
+    "fast_mode": true,
+    "enable_thinking": true
+  },
+
+  "memory": {
+    "enabled": true,
+    "type": "persistent",
+    "location": ".claude/memory/",
+    "auto_update": true,
+    "retention_days": null
+  },
+
+  "hooks": {
+    "enabled": true,
+    "pre_commit": {
+      "enabled": true,
+      "run_tests": true,
+      "run_linter": true,
+      "check_type_hints": true,
+      "check_coverage": true,
+      "coverage_minimum": 80
+    },
+    "pre_push": {
+      "enabled": true,
+      "verify_tests_pass": true,
+      "verify_no_secrets": true,
+      "verify_no_console_logs": true
+    },
+    "post_merge": {
+      "enabled": true,
+      "run_integration_tests": true,
+      "update_dependencies": false
+    },
+    "on_error": {
+      "enabled": true,
+      "create_memory": true,
+      "suggest_fixes": true,
+      "log_to_file": true
+    }
+  },
+
+  "code_quality": {
+    "formatter": {
+      "python": "black",
+      "python_config": {
+        "line_length": 100,
+        "target_version": ["py310"]
+      },
+      "javascript": "prettier",
+      "javascript_config": {
+        "semi": true,
+        "trailingComma": "es5",
+        "printWidth": 100
+      }
+    },
+    "linter": {
+      "python": "pylint",
+      "javascript": "eslint",
+      "config_files": {
+        "python": ".pylintrc",
+        "javascript": ".eslintrc.json"
+      }
+    },
+    "type_checker": {
+      "python": "mypy",
+      "javascript": "typescript"
+    }
+  },
+
+  "testing": {
+    "enabled": true,
+    "framework": {
+      "python": "pytest",
+      "javascript": "vitest"
+    },
+    "coverage": {
+      "enabled": true,
+      "minimum_percentage": 80,
+      "fail_on_lower": true,
+      "report_format": "term-missing"
+    },
+    "on_change": {
+      "run_affected_tests": true,
+      "run_all_tests_before_commit": true
+    }
+  },
+
+  "git": {
+    "commit_template": "[PHASE#-DAY#-TASK] Brief description",
+    "require_description": true,
+    "require_testing": true,
+    "require_coverage": true,
+    "auto_create_branches": false,
+    "protected_branches": ["main", "production"]
+  },
+
+  "ai_assistant": {
+    "voice": "direct",
+    "verbosity": "concise",
+    "include_explanations": true,
+    "include_error_handling": true,
+    "include_tests": true,
+    "include_edge_cases": true,
+    "include_performance_notes": true,
+    "skip_trailing_summaries": true,
+    "verify_code_works": "always",
+    "ask_for_clarification": true,
+    "suggest_improvements": true
+  },
+
+  "development": {
+    "environment": "development",
+    "debug": false,
+    "logging_level": "INFO",
+    "database_url": "sqlite:///./regradar.db",
+    "api_url": "http://localhost:8000",
+    "frontend_url": "http://localhost:3000",
+    "hot_reload": true,
+    "auto_format_on_save": true
+  },
+
+  "performance": {
+    "target_feed_load_time_ms": 2000,
+    "target_api_response_time_ms": 500,
+    "target_database_query_time_ms": 200,
+    "measure_performance": true,
+    "fail_on_performance_regression": true,
+    "enable_profiling": true,
+    "profiling_output": ".claude/profiles/"
+  },
+
+  "security": {
+    "scan_dependencies": true,
+    "check_for_secrets": true,
+    "enforce_https": true,
+    "rate_limiting": true,
+    "input_validation": true,
+    "cors_enabled": true,
+    "csrf_protection": false
+  },
+
+  "accessibility": {
+    "wcag_level": "AA",
+    "check_on_change": true,
+    "test_keyboard_navigation": true,
+    "test_screen_readers": true
+  },
+
+  "deployment": {
+    "auto_deploy": false,
+    "staging_url": "https://staging.regradar.com",
+    "production_url": "https://regradar.com",
+    "require_tests_passing": true,
+    "require_code_review": true,
+    "backup_before_deploy": true
+  },
+
+  "monitoring": {
+    "enabled": true,
+    "sentry": {
+      "enabled": true,
+      "environment": "development",
+      "sample_rate": 1.0
+    },
+    "logging": {
+      "format": "json",
+      "level": "INFO",
+      "file": "logs/app.log"
+    },
+    "metrics": {
+      "track_response_times": true,
+      "track_error_rates": true,
+      "track_uptime": true
+    },
+    "alerts": {
+      "enabled": true,
+      "error_rate_threshold": 0.01,
+      "response_time_threshold_ms": 1000,
+      "uptime_threshold": 0.995
+    }
+  },
+
+  "documentation": {
+    "required": true,
+    "format": "markdown",
+    "docstring_style": "google",
+    "include_examples": true,
+    "include_edge_cases": true,
+    "auto_generate_api_docs": true
+  },
+
+  "notifications": {
+    "test_failures": "alert",
+    "deployment_status": "notify",
+    "performance_regression": "alert",
+    "security_vulnerabilities": "critical_alert",
+    "error_rate_high": "alert"
+  },
+
+  "preferences": {
+    "show_time_estimates": false,
+    "show_summaries": false,
+    "show_implementation_details": true,
+    "ask_before_major_changes": true,
+    "suggest_refactoring": true,
+    "flag_anti_patterns": true,
+    "catch_edge_cases": true,
+    "prioritize_performance": true,
+    "prioritize_security": true
+  },
+
+  "quality_gates": {
+    "minimum_coverage": 80,
+    "maximum_complexity": 10,
+    "maximum_line_length": 100,
+    "minimum_test_count": 20,
+    "require_type_hints": true,
+    "require_docstrings": true,
+    "require_error_handling": true
+  },
+
+  "cli_commands": {
+    "test": "pytest --cov=src --cov-report=term-missing",
+    "test_frontend": "npm run test",
+    "lint": "pylint src/ && npm run lint",
+    "format": "black src/ && prettier --write .",
+    "type_check": "mypy src/",
+    "dev": "docker-compose up",
+    "build": "docker build -t regradar:latest .",
+    "deploy_staging": "./scripts/deploy.sh staging",
+    "deploy_production": "./scripts/deploy.sh production"
+  }
+}
