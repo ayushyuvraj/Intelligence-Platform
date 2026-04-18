@@ -6,6 +6,7 @@ Builds a page-level index at startup and extracts section text on demand.
 - 2025 Act: individual section PDFs in data/pdfs/Income Tax Act 2025/
 """
 import re
+import json
 import glob
 from pathlib import Path
 from functools import lru_cache
@@ -78,14 +79,26 @@ def get_all_sections_1961() -> list[str]:
 
 # ─── 2025 Act ────────────────────────────────────────────────────────────────
 
+SECTION_MAPPING_PATH = DATA_DIR / "section_mapping.json"
+
+
+@lru_cache(maxsize=1)
+def _load_2025_details() -> dict[str, dict]:
+    """Load 2025 section text from section_mapping.json (scraped from EasyOffice)."""
+    if not SECTION_MAPPING_PATH.exists():
+        return {}
+    with open(SECTION_MAPPING_PATH, encoding="utf-8") as f:
+        data = json.load(f)
+    return data.get("new_section_details", {})
+
+
 @lru_cache(maxsize=1)
 def _list_2025_section_files() -> dict[str, Path]:
-    """Returns {section_number: pdf_path} for all individual section PDFs."""
+    """Returns {section_number: pdf_path} for all individual section PDFs (fallback)."""
     mapping: dict[str, Path] = {}
     if not PDF_2025_DIR.exists():
         return mapping
     for path in PDF_2025_DIR.glob("Section-*_*.pdf"):
-        # e.g. Section-123_2026-04-01_05-11-32_e2f4a7_en.pdf
         m = re.match(r"Section-(\d+[A-Z]{0,3})_", path.name)
         if m:
             mapping[m.group(1)] = path
@@ -93,8 +106,26 @@ def _list_2025_section_files() -> dict[str, Path]:
 
 
 def get_section_text_2025(section: str) -> Optional[str]:
-    """Extract text of a section from its individual 2025 Act PDF."""
+    """
+    Get text of a 2025 Act section.
+    Primary source: section_mapping.json (scraped, clean text).
+    Fallback: individual PDF extraction.
+    """
     section = _normalise(section)
+
+    # Try JSON source first (cleaner text, no PDF artefacts)
+    details = _load_2025_details()
+    if section in details:
+        detail = details[section]
+        heading = detail.get("heading", "")
+        text = detail.get("text", "")
+        if text:
+            # Prepend heading if not already in text
+            if heading and heading not in text[:100]:
+                return f"{heading}\n\n{text}"
+            return text
+
+    # Fallback: PDF extraction
     files = _list_2025_section_files()
     pdf_path = files.get(section)
     if pdf_path is None:
@@ -106,8 +137,10 @@ def get_section_text_2025(section: str) -> Optional[str]:
 
 
 def get_all_sections_2025() -> list[str]:
-    """Return list of all available section numbers in the 2025 Act."""
-    return sorted(_list_2025_section_files().keys(), key=_sort_key)
+    """Return list of all available 2025 sections (from JSON + PDFs)."""
+    from_json = set(_load_2025_details().keys())
+    from_pdfs = set(_list_2025_section_files().keys())
+    return sorted(from_json | from_pdfs, key=_sort_key)
 
 
 # ─── Shared ───────────────────────────────────────────────────────────────────

@@ -65,19 +65,23 @@ def _build_label_1961(sec: str) -> str:
     mapping = _load_mapping()
     entry = mapping.get("old_to_new", {}).get(sec.upper())
     if entry and entry.get("title_old"):
-        title = entry["title_old"][:60]
+        title = entry["title_old"][:70]
         return f"{sec} — {title}"
     return sec
 
 
 def _build_label_2025(sec: str) -> str:
     mapping = _load_mapping()
-    # reverse lookup
+    # Try new_section_details first (has heading for every 2025 section)
+    details = mapping.get("new_section_details", {})
+    if sec in details and details[sec].get("heading"):
+        return f"{sec} — {details[sec]['heading'][:70]}"
+    # Fallback: reverse lookup via old_to_new
     for old, entry in mapping.get("old_to_new", {}).items():
         if str(entry.get("new_section", "")) == sec:
             title = entry.get("title_new") or entry.get("title_old", "")
             if title:
-                return f"{sec} — {title[:60]}"
+                return f"{sec} — {title[:70]}"
     return sec
 
 
