@@ -18,12 +18,13 @@ export const useQA = () => {
         '/qa/answer',
         request
       )
+      if (response.data.error) {
+        throw new Error(response.data.answer || 'Failed to get response from AI')
+      }
       return response.data
     },
     onSuccess: (data, request) => {
-      if (!data.error) {
-        addMessage(request.question, data.answer)
-      }
+      addMessage(request.question, data.answer)
     },
   })
 }
