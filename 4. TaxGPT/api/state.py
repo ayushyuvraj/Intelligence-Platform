@@ -72,6 +72,9 @@ def get_engine_from_cache(provider: str, api_key: str, engine_type: str) -> Any:
                 # Force reimport to pick up updated env vars
                 import importlib
                 import sys
+                # Reload config first to pick up new env vars
+                if "src.config" in sys.modules:
+                    importlib.reload(sys.modules["src.config"])
                 if "src.rag_engine" in sys.modules:
                     importlib.reload(sys.modules["src.rag_engine"])
                 from src.rag_engine import get_rag_engine
