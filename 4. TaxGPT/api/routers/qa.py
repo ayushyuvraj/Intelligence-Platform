@@ -31,6 +31,9 @@ async def answer_question(
         )
 
     try:
+        # Debug logging
+        print(f"[DEBUG] Provider: {provider}, Key length: {len(key) if key else 0}, Key preview: {key[:10] if key else 'NONE'}...")
+
         # Set environment variables for this request
         api_config.set_env_vars()
 

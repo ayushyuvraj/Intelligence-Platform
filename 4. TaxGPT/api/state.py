@@ -48,48 +48,57 @@ def get_engine_from_cache(provider: str, api_key: str, engine_type: str) -> Any:
         The engine instance (TaxRAGEngine or SectionMapper)
     """
     cache_key = (provider, api_key, engine_type)
+    print(f"[DEBUG] get_engine_from_cache: provider={provider}, key_len={len(api_key) if api_key else 0}")
 
     with engine_lock:
         if cache_key in engine_cache:
+            print(f"[DEBUG] Using cached engine for {provider}")
             return engine_cache[cache_key]
 
-        # Temporarily set environment variable, instantiate, then reset
-        old_val = os.environ.get(f"{provider.upper()}_API_KEY")
         try:
-            # Map provider name to env var name
-            env_var_map = {
-                "gemini": "GEMINI_API_KEY",
-                "claude": "ANTHROPIC_API_KEY",
-                "openai": "OPENAI_API_KEY",
-                "openrouter": "OPENROUTER_API_KEY",
-            }
-            env_key = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
-            os.environ[env_key] = api_key
-            os.environ["LLM_PROVIDER"] = provider
-
             # Import here to avoid circular imports
             if engine_type == "rag":
-                # Force reimport to pick up updated env vars
-                import importlib
-                import sys
-                # Reload config first to pick up new env vars
-                if "src.config" in sys.modules:
-                    importlib.reload(sys.modules["src.config"])
-                if "src.rag_engine" in sys.modules:
-                    importlib.reload(sys.modules["src.rag_engine"])
-                from src.rag_engine import get_rag_engine
-                engine = get_rag_engine()
+                from src.providers.factory import get_embedding_provider, get_generation_provider
+                from src.rag_engine import TaxRAGEngine
+
+                # Temporarily set environment variables for provider
+                env_var_map = {
+                    "gemini": "GEMINI_API_KEY",
+                    "claude": "ANTHROPIC_API_KEY",
+                    "openai": "OPENAI_API_KEY",
+                    "openrouter": "OPENROUTER_API_KEY",
+                }
+                env_key = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
+                old_val = os.environ.get(env_key)
+                old_provider = os.environ.get("LLM_PROVIDER")
+
+                try:
+                    os.environ[env_key] = api_key
+                    os.environ["LLM_PROVIDER"] = provider
+
+                    # Create providers with the new API key
+                    embedding_provider = get_embedding_provider(provider)
+                    generation_provider = get_generation_provider(provider)
+
+                    # Create engine with providers
+                    engine = TaxRAGEngine(embedding_provider, generation_provider)
+                    engine_cache[cache_key] = engine
+                    return engine
+                finally:
+                    # Restore old env vars
+                    if old_val is None:
+                        os.environ.pop(env_key, None)
+                    else:
+                        os.environ[env_key] = old_val
+                    if old_provider is None:
+                        os.environ.pop("LLM_PROVIDER", None)
+                    else:
+                        os.environ["LLM_PROVIDER"] = old_provider
             else:
                 raise ValueError(f"Unknown engine type: {engine_type}")
-
-            engine_cache[cache_key] = engine
-            return engine
-        finally:
-            # Restore old value
-            if old_val is None:
-                os.environ.pop(env_key, None)
-            else:
-                os.environ[env_key] = old_val
+        except Exception as e:
+            print(f"[ERROR] Failed to create engine: {e}")
+            raise
 
 
 def clear_engine_cache():
