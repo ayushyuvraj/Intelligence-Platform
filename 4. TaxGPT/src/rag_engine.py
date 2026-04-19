@@ -282,9 +282,57 @@ Your Gemini API free tier quota has been exhausted. You have 3 options:
 
 
 # Singleton instance
-def get_rag_engine():
-    """Create RAG engine with providers from environment"""
-    from providers.factory import get_providers
+def _detect_index_dimensions() -> int:
+    """Read the FAISS index dimension to know which embedding provider to use"""
+    index_path = FAISS_INDEX_DIR / "index.faiss"
+    if not index_path.exists():
+        return 0
+    try:
+        if faiss:
+            idx = faiss.read_index(str(index_path))
+            return idx.d
+    except Exception:
+        pass
+    return 0
 
-    embedding_provider, generation_provider = get_providers()
+
+def get_rag_engine():
+    """Create RAG engine with providers from environment.
+
+    Embedding provider is selected based on the FAISS index dimension:
+    - 1536 dims → OpenAI (text-embedding-3-small)
+    - 768 dims  → Gemini (gemini-embedding-001)
+    Generation provider follows LLM_PROVIDER env var.
+    """
+    import os
+    from providers.factory import get_generation_provider
+
+    index_dims = _detect_index_dimensions()
+
+    # Select embedding provider based on what the index was built with
+    if index_dims == 1536:
+        from providers.openai import OpenAIEmbeddingProvider
+        openai_key = os.getenv("OPENAI_API_KEY", "")
+        if not openai_key:
+            raise ValueError(
+                "This knowledge base requires an OpenAI API key for search "
+                "(the index was built with OpenAI text-embedding-3-small). "
+                "Please provide X-OpenAI-Key header."
+            )
+        embedding_provider = OpenAIEmbeddingProvider(openai_key)
+    elif index_dims == 768:
+        from providers.gemini import GeminiEmbeddingProvider
+        gemini_key = os.getenv("GEMINI_API_KEY", "")
+        if not gemini_key:
+            raise ValueError(
+                "This knowledge base requires a Gemini API key for search "
+                "(the index was built with Gemini gemini-embedding-001). "
+                "Please provide X-Gemini-Key header."
+            )
+        embedding_provider = GeminiEmbeddingProvider(gemini_key)
+    else:
+        from providers.factory import get_embedding_provider
+        embedding_provider = get_embedding_provider()
+
+    generation_provider = get_generation_provider()
     return TaxRAGEngine(embedding_provider, generation_provider)

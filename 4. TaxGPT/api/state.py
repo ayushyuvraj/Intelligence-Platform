@@ -35,61 +35,58 @@ engine_cache: Dict[Tuple[str, str], Any] = {}
 engine_lock = threading.Lock()
 
 
-def get_engine_from_cache(provider: str, api_key: str, engine_type: str) -> Any:
+def get_engine_from_cache(provider: str, api_key: str, engine_type: str, openai_key: str = "") -> Any:
     """
     Get or create a cached engine instance for the given provider/key combo.
 
     Args:
-        provider: "gemini", "claude", "openai", etc.
-        api_key: The API key for this provider
-        engine_type: "rag" or "section_mapper"
-
-    Returns:
-        The engine instance (TaxRAGEngine or SectionMapper)
+        provider: "gemini", "claude", "openai", etc. (used for generation)
+        api_key: The API key for the generation provider
+        engine_type: "rag"
+        openai_key: OpenAI key used for embeddings (index was built with OpenAI)
     """
-    cache_key = (provider, api_key, engine_type)
-    print(f"[DEBUG] get_engine_from_cache: provider={provider}, key_len={len(api_key) if api_key else 0}")
+    cache_key = (provider, api_key, engine_type, openai_key)
 
     with engine_lock:
         if cache_key in engine_cache:
-            print(f"[DEBUG] Using cached engine for {provider}")
             return engine_cache[cache_key]
 
         try:
-            # Import here to avoid circular imports
             if engine_type == "rag":
-                from src.providers.factory import get_embedding_provider, get_generation_provider
-                from src.rag_engine import TaxRAGEngine
+                from src.rag_engine import get_rag_engine
 
-                # Temporarily set environment variables for provider
                 env_var_map = {
                     "gemini": "GEMINI_API_KEY",
                     "claude": "ANTHROPIC_API_KEY",
                     "openai": "OPENAI_API_KEY",
                     "openrouter": "OPENROUTER_API_KEY",
                 }
-                env_key = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
-                old_val = os.environ.get(env_key)
+                gen_env_key = env_var_map.get(provider, f"{provider.upper()}_API_KEY")
+                old_gen = os.environ.get(gen_env_key)
+                old_openai = os.environ.get("OPENAI_API_KEY")
                 old_provider = os.environ.get("LLM_PROVIDER")
 
                 try:
-                    os.environ[env_key] = api_key
+                    os.environ[gen_env_key] = api_key
                     os.environ["LLM_PROVIDER"] = provider
+                    # Always set OpenAI key for embeddings (index built with OpenAI)
+                    if openai_key:
+                        os.environ["OPENAI_API_KEY"] = openai_key
+                    elif provider == "openai":
+                        os.environ["OPENAI_API_KEY"] = api_key
 
-                    # Create providers with the new API key
-                    embedding_provider = get_embedding_provider(provider)
-                    generation_provider = get_generation_provider(provider)
-
-                    # Create engine with providers
-                    engine = TaxRAGEngine(embedding_provider, generation_provider)
+                    engine = get_rag_engine()
                     engine_cache[cache_key] = engine
                     return engine
                 finally:
-                    # Restore old env vars
-                    if old_val is None:
-                        os.environ.pop(env_key, None)
+                    if old_gen is None:
+                        os.environ.pop(gen_env_key, None)
                     else:
-                        os.environ[env_key] = old_val
+                        os.environ[gen_env_key] = old_gen
+                    if old_openai is None:
+                        os.environ.pop("OPENAI_API_KEY", None)
+                    else:
+                        os.environ["OPENAI_API_KEY"] = old_openai
                     if old_provider is None:
                         os.environ.pop("LLM_PROVIDER", None)
                     else:
@@ -107,6 +104,6 @@ def clear_engine_cache():
         engine_cache.clear()
 
 
-def get_engine(provider: str, api_key: str):
+def get_engine(provider: str, api_key: str, openai_key: str = ""):
     """Get or create a RAG engine for this provider/key combo"""
-    return get_engine_from_cache(provider, api_key, "rag")
+    return get_engine_from_cache(provider, api_key, "rag", openai_key=openai_key)

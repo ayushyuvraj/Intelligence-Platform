@@ -31,14 +31,11 @@ async def answer_question(
         )
 
     try:
-        # Debug logging
-        print(f"[DEBUG] Provider: {provider}, Key length: {len(key) if key else 0}, Key preview: {key[:10] if key else 'NONE'}...")
-
         # Set environment variables for this request
         api_config.set_env_vars()
 
-        # Get or create engine (cached by provider + key)
-        engine = get_engine(provider, key)
+        # Always pass OpenAI key for embeddings (FAISS index built with OpenAI)
+        engine = get_engine(provider, key, openai_key=api_config.openai_key)
 
         # Prepare chat history
         chat_history = [
