@@ -6,7 +6,7 @@ import sys
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
-from api.schemas.mapper import MapperRequest, MapperResponse, MapperStatsResponse
+from api.schemas.mapper import MapperRequest, MapperResponse, MapperStatsResponse, AllMappingsResponse
 from section_mapper import SectionMapper
 
 router = APIRouter(prefix="/api/v1", tags=["mapper"])
@@ -47,5 +47,25 @@ async def get_mapper_stats() -> MapperStatsResponse:
     try:
         stats = mapper.get_mapping_stats()
         return MapperStatsResponse(**stats)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/mapper/all", response_model=AllMappingsResponse)
+async def get_all_mappings() -> AllMappingsResponse:
+    """Return full mapping data for client-side search (cached once, no per-query calls)"""
+    if mapper is None:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Section mapper initialization failed: {mapper_error}"
+        )
+
+    try:
+        data = mapper.get_all_mappings()
+        return AllMappingsResponse(
+            old_to_new=data.get("old_to_new", {}),
+            concepts=data.get("concepts", {}),
+            forms=data.get("forms", {}),
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

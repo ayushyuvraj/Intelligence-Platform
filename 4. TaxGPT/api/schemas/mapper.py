@@ -1,7 +1,7 @@
 """Section mapper request/response schemas"""
 
 from pydantic import BaseModel, Field
-from typing import Optional, Literal, Union
+from typing import Any, Dict, Optional, Literal, Union
 
 
 class MapperRequest(BaseModel):
@@ -57,3 +57,10 @@ class MapperStatsResponse(BaseModel):
     total_old_to_new: int
     total_concepts: int
     total_forms: int
+
+
+class AllMappingsResponse(BaseModel):
+    """Full mapping data for client-side search"""
+    old_to_new: Dict[str, Any]
+    concepts: Dict[str, Any]
+    forms: Dict[str, Any]

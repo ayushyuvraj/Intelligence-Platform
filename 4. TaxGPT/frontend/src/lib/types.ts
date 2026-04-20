@@ -69,6 +69,18 @@ export interface MapperStatsResponse {
   total_forms: number
 }
 
+// Flat entry used for client-side search in Compare Acts mapper mode
+export type MappingEntry =
+  | (SectionResult & { key: string })
+  | (ConceptResult & { key: string })
+  | (FormResult & { key: string })
+
+export interface AllMappingsResponse {
+  old_to_new: Record<string, Omit<SectionResult, 'found' | 'type'> & { new_sections?: string[] }>
+  concepts: Record<string, Omit<ConceptResult, 'found' | 'type'>>
+  forms: Record<string, Omit<FormResult, 'found' | 'type'>>
+}
+
 export interface ProfileItem {
   id: string
   label: string
