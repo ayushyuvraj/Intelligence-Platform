@@ -11,6 +11,7 @@ import {
   type SectionListItem,
 } from '../hooks/useCompare'
 import { useMappingAll } from '../hooks/useMapper'
+import { CategoryBento } from './CategoryBento'
 import type { MappingEntry } from '../lib/types'
 
 // ─── Searchable dropdown ──────────────────────────────────────────────────────
@@ -487,9 +488,16 @@ export function CompareTab() {
   const handleSelectOld = (sec: string) => { setOldSection(sec); setDirection('from-old') }
   const handleSelectNew = (sec: string) => { setNewSection(sec); setDirection('from-new') }
 
+  // Called from search dropdown — also populates the search input
   const handleSelectEntry = (entry: MappingEntry) => {
     setSelectedEntry(entry)
     setMapperSearch(entry.type === 'section' ? entry.old_section : entry.type === 'concept' ? entry.old_concept : entry.old_form)
+    setDropdownOpen(false)
+  }
+
+  // Called from bento pills — shows result card above bento, keeps search clear
+  const handleBentoSelect = (entry: MappingEntry) => {
+    setSelectedEntry(entry)
     setDropdownOpen(false)
   }
 
@@ -653,23 +661,51 @@ export function CompareTab() {
               </AnimatePresence>
             </div>
 
-            {/* Result card */}
+            {/* Result card from search — shown when mapperSearch has text */}
             <AnimatePresence mode="wait">
-              {selectedEntry ? (
-                <MapperResultCard key={selectedEntry.key} entry={selectedEntry} />
-              ) : !mapperSearch.trim() && allMappings ? (
+              {selectedEntry && mapperSearch.trim() && (
+                <MapperResultCard key={`search-${selectedEntry.key}`} entry={selectedEntry} />
+              )}
+            </AnimatePresence>
+
+            {/* Bento + inline result card — shown when search is empty */}
+            <AnimatePresence mode="wait">
+              {!mapperSearch.trim() && allMappings && (
                 <motion.div
-                  key="hint"
-                  initial={{ opacity: 0 }} animate={{ opacity: 0.6 }} exit={{ opacity: 0 }}
-                  className="flex flex-col items-center justify-center gap-3 py-16 text-center"
+                  key="bento-area"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.2 }}
+                  className="flex flex-col gap-4"
                 >
-                  <Map className="h-10 w-10 text-white/10" />
-                  <p className="text-sm text-white/25">
-                    {allMappings.length} mappings loaded · type above to search
-                  </p>
-                  <p className="text-xs text-white/15">Sections · Concepts · Forms</p>
+                  {/* Result from bento selection — dismissible */}
+                  <AnimatePresence>
+                    {selectedEntry && !mapperSearch.trim() && (
+                      <motion.div
+                        key={`bento-result-${selectedEntry.key}`}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="relative">
+                          <MapperResultCard entry={selectedEntry} />
+                          <button
+                            onClick={() => setSelectedEntry(null)}
+                            className="absolute top-3 right-3 flex h-6 w-6 items-center justify-center rounded-lg text-white/30 hover:text-white/70 hover:bg-white/10 transition-all"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Category bento grid */}
+                  <CategoryBento entries={allMappings} onSelectEntry={handleBentoSelect} />
                 </motion.div>
-              ) : null}
+              )}
             </AnimatePresence>
           </motion.div>
         )}
