@@ -3,6 +3,7 @@
 import time
 from typing import List, Optional
 from google import genai
+from google.genai import types
 
 from .base import EmbeddingProvider, GenerationProvider
 
@@ -66,16 +67,15 @@ class GeminiGenerationProvider(GenerationProvider):
     def generate(self, prompt: str, system_prompt: Optional[str] = None) -> str:
         """Generate text using Gemini"""
         try:
-            if system_prompt:
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    contents=prompt,
-                    system_instruction=system_prompt,
-                )
-            else:
-                response = self.client.models.generate_content(
-                    model=self.model, contents=prompt
-                )
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+            ) if system_prompt else None
+
+            response = self.client.models.generate_content(
+                model=self.model,
+                contents=prompt,
+                config=config,
+            )
             return response.text
         except Exception as e:
             raise Exception(f"Gemini generation failed: {e}")
@@ -83,19 +83,15 @@ class GeminiGenerationProvider(GenerationProvider):
     def stream_generate(self, prompt: str, system_prompt: Optional[str] = None):
         """Stream generation from Gemini"""
         try:
-            if system_prompt:
-                response = self.client.models.generate_content(
-                    model=self.model,
-                    contents=prompt,
-                    system_instruction=system_prompt,
-                    stream=True,
-                )
-            else:
-                response = self.client.models.generate_content(
-                    model=self.model, contents=prompt, stream=True
-                )
+            config = types.GenerateContentConfig(
+                system_instruction=system_prompt,
+            ) if system_prompt else None
 
-            for chunk in response:
+            for chunk in self.client.models.generate_content_stream(
+                model=self.model,
+                contents=prompt,
+                config=config,
+            ):
                 if chunk.text:
                     yield chunk.text
 

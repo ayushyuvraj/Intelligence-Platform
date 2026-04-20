@@ -11,12 +11,14 @@ RAG-powered AI tool helping 80M+ Indian taxpayers navigate the Income Tax Act 20
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Streamlit |
+| Frontend | React 19 + TypeScript + Vite + Tailwind CSS + Framer Motion |
+| Backend | FastAPI (Python 3.11+) |
 | AI/LLM | Google Gemini (`gemini-2.0-flash` for generation, `gemini-embedding-001` for embeddings) |
 | Vector Store | FAISS (`faiss-cpu`, `IndexFlatIP` with L2 normalization for cosine similarity) |
 | PDF Parsing | PyPDF2 |
-| Language | Python 3.11+ |
-| Deployment | Google Cloud Run or Streamlit Community Cloud |
+| State Management | Zustand (client), FastAPI dependency injection (server) |
+| Data Fetching | React Query (@tanstack/react-query) |
+| Deployment | Google Cloud Run (Docker) or local development |
 
 ### Critical: API Package
 
@@ -60,6 +62,48 @@ except Exception:
 
 ```
 taxgpt-india/
+├── frontend/                           # React + Vite frontend
+│   ├── src/
+│   │   ├── main.tsx                    # React entry point
+│   │   ├── App.tsx                     # Root component
+│   │   ├── components/                 # Reusable React components
+│   │   ├── hooks/                      # Custom hooks (useQA, useMapper, useProfile, useNotice, useIngestion)
+│   │   ├── store/                      # Zustand stores (apiKeyStore, chatStore)
+│   │   ├── lib/                        # Utilities (api.ts, types.ts, queryClient.ts)
+│   │   └── styles/                     # Tailwind + global styles
+│   ├── vite.config.ts                  # Vite config with API proxy (localhost:8000)
+│   ├── package.json                    # Node dependencies
+│   └── tsconfig.json                   # TypeScript config
+├── api/                                # FastAPI backend
+│   ├── main.py                         # FastAPI app factory & startup
+│   ├── dependencies.py                 # Shared dependencies
+│   ├── state.py                        # Global state management
+│   ├── routers/                        # API endpoints
+│   │   ├── health.py                   # Health check endpoint
+│   │   ├── qa.py                       # /api/v1/qa - RAG query endpoint
+│   │   ├── mapper.py                   # /api/v1/mapper - Section mapping
+│   │   ├── profile.py                  # /api/v1/profile - Profile analysis
+│   │   ├── notice.py                   # /api/v1/notice - Notice decoding
+│   │   ├── ingestion.py                # /api/v1/ingest - FAISS index building
+│   │   └── compare.py                  # /api/v1/compare - Mapping comparison
+│   ├── schemas/                        # Pydantic request/response models
+│   │   ├── qa.py, mapper.py, profile.py, notice.py, ingestion.py, etc.
+│   └── utils/                          # API utilities
+│       └── section_extractor.py        # PDF section analysis
+├── src/                                # Core Python business logic (shared by backend & CLI)
+│   ├── config.py                       # All configuration, API keys, constants
+│   ├── ingest.py                       # PDF ingestion -> semantic chunks -> embeddings -> FAISS
+│   ├── rag_engine.py                   # RAG pipeline: embed query -> FAISS search -> Gemini generate
+│   ├── section_mapper.py               # Old-to-new section mapping (JSON-first, RAG fallback)
+│   ├── profile_analyzer.py             # Personalized impact analysis by taxpayer profile
+│   ├── notice_decoder.py               # Tax notice decoder with severity rating
+│   ├── prompts.py                      # ALL Gemini prompt templates (centralized)
+│   ├── query_logger.py                 # Query event logging to JSONL
+│   ├── ragas_evaluator.py              # Quality evaluation using RAGAS metrics
+│   ├── content_filter.py               # Offline tax relevance filtering
+│   ├── providers/                      # LLM provider abstraction (Gemini, OpenAI, Claude, Ollama, OpenRouter)
+│   ├── analytics.py, security.py       # Analytics tracking & security controls
+│   └── app.py                          # Legacy Streamlit app (replaced by FastAPI + React)
 ├── data/
 │   ├── pdfs/                           # Source PDFs (gitignored)
 │   │   ├── Income Tax Act 2025/        # 536 individual section PDFs + 16 schedule PDFs
@@ -67,34 +111,25 @@ taxgpt-india/
 │   │   ├── Income Tax Rules 2026.pdf
 │   │   ├── Finance Bill 2026.pdf
 │   │   └── The_Income-tax_Bill,_2025.pdf
-│   ├── faiss_index/                    # Generated FAISS index (gitignored)
-│   │   ├── index.faiss
-│   │   ├── chunks.json
-│   │   └── checkpoint.json             # Ingestion progress checkpoint
+│   ├── faiss_index/                    # Generated FAISS index (built)
+│   │   ├── index.faiss                 # FAISS vector index (11M)
+│   │   ├── chunks.json                 # Chunk metadata (5.2M)
+│   │   ├── checkpoint.json             # Ingestion progress checkpoint
+│   │   └── ingestion_progress.json     # Final ingestion status (100%)
 │   ├── section_mapping.json            # Old-to-new section mapping (COMMITTED, offline backbone)
 │   └── dropdown_options_raw.json       # Raw scraped mapping data
-├── src/
-│   ├── app.py                          # Streamlit entry point (4 tabs UI)
-│   ├── config.py                       # All configuration, API keys, constants
-│   ├── ingest.py                       # PDF ingestion -> semantic chunks -> embeddings -> FAISS
-│   ├── rag_engine.py                   # RAG pipeline: embed query -> FAISS search -> Gemini generate
-│   ├── section_mapper.py               # Old-to-new section mapping (JSON-first, RAG fallback)
-│   ├── profile_analyzer.py             # Personalized impact analysis by taxpayer profile
-│   ├── notice_decoder.py               # Tax notice decoder with severity rating
-│   └── prompts.py                      # ALL Gemini prompt templates (centralized)
 ├── tools/
-│   └── scrape_mapping.py               # Playwright scraper for govt mapping utility (v2/v3)
-├── .streamlit/
-│   └── config.toml                     # Green/white theme, headless server config
-├── requirements.txt
+│   ├── scrape_mapping.py               # Playwright scraper for govt mapping utility
+│   └── analyze_logs.py                 # Query log and RAGAS analysis tool
+├── requirements.txt                    # Python dependencies (backend + src)
 ├── .env.example                        # GEMINI_API_KEY=your-key-here
 ├── .gitignore
-├── Dockerfile
+├── Dockerfile                          # Multi-stage: builds frontend, copies to backend
+├── docker-compose.yml                  # (Optional) Local development
 ├── CLAUDE.md                           # This file
-├── plan.md                             # Implementation plan
-├── PRD.md                              # Product requirements document
-├── IDEA.md                             # Original build prompt
-└── README.md
+├── plan.md, PRD.md, IDEA.md, README.md
+├── PROJECT_STATUS.md                   # Current status & completion
+└── PHASE*_*.md                         # Phase completion docs
 ```
 
 ### File Purposes
@@ -117,13 +152,17 @@ taxgpt-india/
 
 ### First-time setup
 ```bash
+# 1. Python backend
 python -m venv venv
 source venv/Scripts/activate  # Windows bash
-# PowerShell: .\venv\Scripts\Activate.ps1
-# CMD: venv\Scripts\activate.bat
 pip install -r requirements.txt
 cp .env.example .env
 # Edit .env and add your GEMINI_API_KEY
+
+# 2. Node frontend
+cd frontend
+npm install
+cd ..
 ```
 
 ### Ingestion (run once, or when PDFs change)
@@ -131,18 +170,43 @@ cp .env.example .env
 python src/ingest.py
 ```
 Reads all PDFs from `data/pdfs/` (recursive), creates semantic chunks, generates embeddings via `gemini-embedding-001`, builds FAISS index. Saves to `data/faiss_index/`. Checkpoints after every batch -- safe to interrupt and resume.
+**Status:** ✅ COMPLETED (1,842 vectors built)
 
-### Run the app
+### Run locally (development)
 ```bash
-streamlit run src/app.py
-# Opens at http://localhost:8501
+# Terminal 1: Backend (FastAPI on port 8000)
+python api/main.py
+# or: uvicorn api.main:app --reload
+
+# Terminal 2: Frontend (React/Vite on port 5173)
+cd frontend
+npm run dev
+
+# Opens at http://localhost:5173 (proxies /api to 8000)
+```
+
+### Run tests
+```bash
+python test_integration.py       # Test all features offline
+python test_performance.py       # Performance benchmarks
+python tools/analyze_logs.py     # Analyze query logs & RAGAS metrics
 ```
 
 ### Docker deployment
-Base image: `python:3.11-slim`. FAISS index is baked into the image (not generated at runtime). Port 8080.
+Multi-stage Dockerfile: builds React frontend, copies to backend, serves from FastAPI on port 8000.
 ```bash
+# Build
 docker build -t taxgpt-india .
-docker run -p 8080:8080 -e GEMINI_API_KEY=your-key taxgpt-india
+
+# Run locally
+docker run -p 8080:8000 -e GEMINI_API_KEY=your-key taxgpt-india
+
+# Or Cloud Run
+gcloud run deploy taxgpt-india \
+  --image gcr.io/PROJECT_ID/taxgpt-india \
+  --region us-central1 \
+  --memory 2Gi \
+  --set-env-vars GEMINI_API_KEY=your-key
 ```
 
 ---
@@ -348,6 +412,7 @@ No automated test suite (v1). Verify manually:
 
 ## What NOT to Do
 
+### Python/Backend
 - **Do NOT use `google-generativeai` package.** The correct package is `google-genai`. They have different APIs.
 - **Do NOT cite old 1961 Act section numbers in answers.** Always map to new 2025 sections.
 - **Do NOT use naive character splitting for chunking.** Use section-aware boundaries.
@@ -361,6 +426,23 @@ No automated test suite (v1). Verify manually:
 - **Do NOT break module interfaces.** Each module's public method signature is its contract. Add parameters with defaults, don't change existing signatures.
 - **Do NOT return any tax-related response without the disclaimer.** This includes Section Mapper results, profile analysis, notice decoding, AND Q&A answers. No exceptions.
 - **Do NOT send notice text to Gemini without displaying the privacy notice** about data being processed by Google's AI.
+
+### Frontend/React
+- **Do NOT hardcode API URLs.** Use environment variables or the `api.ts` utility.
+- **Do NOT make synchronous API calls.** Use React Query (`useQuery`, `useMutation`) for all server communication.
+- **Do NOT store sensitive data in Zustand.** API keys are OK (user-provided); session tokens are NOT.
+- **Do NOT bypass TypeScript.** All API responses must have type-safe schemas in `lib/types.ts`.
+- **Do NOT fetch inside components.** Use custom hooks (`useQA`, `useMapper`, etc.) in `hooks/`.
+- **Do NOT render without error boundaries.** Components must gracefully handle API failures.
+- **Do NOT hardcode Tailwind breakpoints.** Use responsive classes (`sm:`, `md:`, `lg:`).
+
+### FastAPI/Backend
+- **Do NOT expose raw Python errors.** All exceptions must return structured JSON error responses.
+- **Do NOT skip CORS configuration.** Requests from React (localhost:5173) must be allowed.
+- **Do NOT use `GET` for mutations.** Searches are OK, but any write operation must be `POST`.
+- **Do NOT store state in global variables.** Use FastAPI's dependency injection or state management.
+- **Do NOT start heavy operations in request handlers.** Use background tasks or startup events (e.g., section mapper warmup).
+- **Do NOT return raw FAISS results.** Always format as JSON with metadata and citations.
 
 ---
 

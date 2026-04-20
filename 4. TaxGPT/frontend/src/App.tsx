@@ -13,13 +13,19 @@ import { useHealth } from './hooks/useHealth'
 import { useApiKeyStore } from './store/apiKeyStore'
 import { MapperTab } from './components/MapperTab'
 import { CompareTab } from './components/CompareTab'
+import { QATab } from './components/QATab'
+import { ProfileTab } from './components/ProfileTab'
+import { NoticeTab } from './components/NoticeTab'
 import { ParticleField } from './components/ParticleField'
 import { TiltCard } from './components/TiltCard'
-import { ProviderSelector } from './components/ProviderSelector'
+import { APIKeyManager } from './components/APIKeyManager'
 import { AnimatedCounter } from './components/AnimatedCounter'
 
 type TabType = 'dashboard' | 'mapper' | 'qa' | 'profile' | 'notice' | 'compare'
 const cn = (...c: (string | boolean | undefined)[]) => c.filter(Boolean).join(' ')
+
+// Remove ComingSoon function since all tabs are now implemented
+// function ComingSoon({ label, icon: Icon }: { label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }) {
 
 // ─── Cursor glow that follows mouse ───────────────────────────────────────────
 function CursorGlow() {
@@ -382,31 +388,6 @@ const INITIAL_NOTIFS = [
   { id: '3', title: 'New Tax Update', message: 'FY 2025-26 regulations published', time: '1d ago', read: true, type: 'info' as const },
 ]
 
-// ─── Coming soon placeholder ──────────────────────────────────────────────────
-function ComingSoon({ label, icon: Icon }: { label: string; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }> }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.97 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-col items-center justify-center min-h-96 rounded-2xl border border-white/8 bg-[#0d1117]/60 backdrop-blur-2xl text-center"
-    >
-      <motion.div
-        animate={{ y: [-6, 6, -6] }}
-        transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-        className="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl border border-indigo-500/20 bg-gradient-to-br from-indigo-500/10 to-violet-500/10"
-      >
-        <Icon className="h-10 w-10 text-indigo-400" />
-      </motion.div>
-      <h3 className="text-xl font-bold text-white mb-2">{label}</h3>
-      <p className="text-gray-500 text-sm">This feature is coming soon.</p>
-      <motion.div
-        className="mt-6 h-1 w-24 rounded-full bg-gradient-to-r from-indigo-500 to-violet-500"
-        animate={{ scaleX: [0.5, 1, 0.5], opacity: [0.5, 1, 0.5] }}
-        transition={{ duration: 2, repeat: Infinity }}
-      />
-    </motion.div>
-  )
-}
 
 // ─── Main app ─────────────────────────────────────────────────────────────────
 function AppContent() {
@@ -431,9 +412,9 @@ function AppContent() {
   const nav: { id: TabType; icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>; label: string; badge?: string }[] = [
     { id: 'dashboard', icon: BarChart3, label: 'Dashboard' },
     { id: 'mapper', icon: Map, label: 'Section Mapper', badge: 'Live' },
-    { id: 'qa', icon: Zap, label: 'AI Assistant', badge: 'Soon' },
-    { id: 'profile', icon: Users, label: 'Profile Analysis', badge: 'Soon' },
-    { id: 'notice', icon: FileText, label: 'Notice Decoder', badge: 'Soon' },
+    { id: 'qa', icon: Zap, label: 'AI Assistant', badge: 'Live' },
+    { id: 'profile', icon: Users, label: 'Profile Analysis', badge: 'Live' },
+    { id: 'notice', icon: FileText, label: 'Notice Decoder', badge: 'Live' },
     { id: 'compare', icon: ArrowLeftRight, label: 'Compare Acts', badge: 'New' },
   ]
 
@@ -688,17 +669,17 @@ function AppContent() {
 
             {activeTab === 'qa' && (
               <motion.div key="qa" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <ComingSoon label="AI Assistant" icon={Zap} />
+                <QATab onOpenSettings={() => setProviderOpen(true)} />
               </motion.div>
             )}
             {activeTab === 'profile' && (
               <motion.div key="profile" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <ComingSoon label="Profile Analysis" icon={Users} />
+                <ProfileTab onOpenSettings={() => setProviderOpen(true)} />
               </motion.div>
             )}
             {activeTab === 'notice' && (
               <motion.div key="notice" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-                <ComingSoon label="Notice Decoder" icon={FileText} />
+                <NoticeTab onOpenSettings={() => setProviderOpen(true)} />
               </motion.div>
             )}
             {activeTab === 'compare' && (
@@ -716,7 +697,7 @@ function AppContent() {
         </main>
       </motion.div>
 
-      <ProviderSelector open={providerOpen} onClose={() => setProviderOpen(false)} />
+      <APIKeyManager open={providerOpen} onClose={() => setProviderOpen(false)} />
     </div>
   )
 }

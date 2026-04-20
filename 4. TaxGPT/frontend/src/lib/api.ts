@@ -44,8 +44,17 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 400) {
-      console.error('API validation error:', error.response.data)
+    const status = error.response?.status
+    if (status === 422) {
+      // FastAPI validation error — extract the first human-readable message
+      const detail = error.response.data?.detail
+      let msg = 'Invalid request'
+      if (Array.isArray(detail) && detail.length > 0) {
+        msg = detail[0].msg ?? msg
+      } else if (typeof detail === 'string') {
+        msg = detail
+      }
+      return Promise.reject(new Error(msg))
     }
     return Promise.reject(error)
   }

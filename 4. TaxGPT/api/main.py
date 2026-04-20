@@ -4,11 +4,12 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
+# Add project root and src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))  # Project root
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 from api.routers import health, qa, mapper, profile, notice, ingestion, compare
 

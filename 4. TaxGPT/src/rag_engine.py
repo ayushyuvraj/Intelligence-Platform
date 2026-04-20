@@ -174,20 +174,38 @@ class TaxRAGEngine:
             )
 
             if not retrieved_chunks:
-                context = "[No matching sections found in knowledge base]"
+                context = "[No specific sections retrieved — answer from your expert knowledge of the Income Tax Act, 2025]"
                 sources = []
             else:
-                # Format context
+                # Format context — use top 5 chunks, 1000 chars each for richer context
                 context = "\n\n".join(
-                    [f"**{c['source']}**:\n{c['text'][:500]}..." for c in retrieved_chunks[:3]]
+                    [f"**{c['source']}**:\n{c['text'][:1000]}" for c in retrieved_chunks[:5]]
                 )
                 sources = [{"source": c["source"], "section": c.get("section_number")} for c in retrieved_chunks]
 
-            # Format chat history
+            # Format chat history — handles both {role/content} and {question/answer} formats
             history_text = ""
             if chat_history:
-                for turn in chat_history[-CHAT_HISTORY_CONTEXT :]:
-                    history_text += f"Q: {turn.get('question', '')}\nA: {turn.get('answer', '')[:200]}...\n"
+                # Pair up role/content messages into Q&A turns
+                if chat_history and "role" in chat_history[0]:
+                    pairs = []
+                    i = 0
+                    while i < len(chat_history) - 1:
+                        if chat_history[i].get("role") == "user":
+                            pairs.append((
+                                chat_history[i].get("content", ""),
+                                chat_history[i + 1].get("content", "") if chat_history[i + 1].get("role") == "assistant" else ""
+                            ))
+                            i += 2
+                        else:
+                            i += 1
+                    for q, a in pairs[-CHAT_HISTORY_CONTEXT:]:
+                        history_text += f"User: {q}\nAssistant: {a[:600]}\n\n"
+                else:
+                    for turn in chat_history[-CHAT_HISTORY_CONTEXT:]:
+                        q = turn.get("question", "")
+                        a = turn.get("answer", "")
+                        history_text += f"User: {q}\nAssistant: {a[:600]}\n\n"
 
             # Build prompt
             user_prompt = TAX_QA_USER_PROMPT_TEMPLATE.format(

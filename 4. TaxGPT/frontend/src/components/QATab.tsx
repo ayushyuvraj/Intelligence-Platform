@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Loader, AlertCircle, Key } from 'lucide-react'
+import ReactMarkdown from 'react-markdown'
 import { useQA } from '../hooks/useQA'
 import { useChatStore } from '../store/chatStore'
 import { useApiKeyStore } from '../store/apiKeyStore'
@@ -31,9 +32,11 @@ export function QATab({ onOpenSettings }: QATabProps) {
     scrollToBottom()
   }, [chatHistory])
 
+  const MIN_CHARS = 10
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!question.trim() || !apiKey) return
+    if (question.trim().length < MIN_CHARS || !apiKey) return
 
     mutate(
       {
@@ -110,8 +113,39 @@ export function QATab({ onOpenSettings }: QATabProps) {
 
                 {/* Assistant message */}
                 <div className="flex justify-start">
-                  <div className="max-w-xs lg:max-w-md bg-white/8 border border-white/10 text-gray-100 rounded-2xl rounded-tl-sm p-4">
-                    <p className="text-sm whitespace-pre-wrap">{msg.answer}</p>
+                  <div className="max-w-xs lg:max-w-2xl bg-white/8 border border-white/10 text-gray-100 rounded-2xl rounded-tl-sm p-4">
+                    <ReactMarkdown
+                      components={{
+                        a: ({ href, children }) => (
+                          <a
+                            href={href}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors"
+                          >
+                            {children}
+                          </a>
+                        ),
+                        p: ({ children }) => <p className="text-sm mb-2 last:mb-0">{children}</p>,
+                        ul: ({ children }) => <ul className="text-sm list-disc list-inside space-y-1 mb-2">{children}</ul>,
+                        ol: ({ children }) => <ol className="text-sm list-decimal list-inside space-y-1 mb-2">{children}</ol>,
+                        li: ({ children }) => <li className="text-sm">{children}</li>,
+                        strong: ({ children }) => <strong className="text-white font-semibold">{children}</strong>,
+                        h3: ({ children }) => <h3 className="text-sm font-bold text-white mt-3 mb-1">{children}</h3>,
+                        h4: ({ children }) => <h4 className="text-sm font-semibold text-gray-200 mt-2 mb-1">{children}</h4>,
+                        table: ({ children }) => (
+                          <div className="overflow-x-auto my-2">
+                            <table className="text-xs border-collapse w-full">{children}</table>
+                          </div>
+                        ),
+                        th: ({ children }) => <th className="border border-white/20 px-2 py-1 text-left font-semibold bg-white/10">{children}</th>,
+                        td: ({ children }) => <td className="border border-white/10 px-2 py-1">{children}</td>,
+                        blockquote: ({ children }) => <blockquote className="border-l-2 border-indigo-500 pl-3 text-gray-400 italic my-2">{children}</blockquote>,
+                        hr: () => <hr className="border-white/10 my-3" />,
+                      }}
+                    >
+                      {msg.answer}
+                    </ReactMarkdown>
                   </div>
                 </div>
               </motion.div>
@@ -146,19 +180,26 @@ export function QATab({ onOpenSettings }: QATabProps) {
       {/* Input */}
       <div className="border-t border-white/8 bg-[#0d1117]/50 p-4">
         <form onSubmit={handleSubmit} className="flex gap-3">
-          <input
-            type="text"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder="Ask about sections, deductions, forms..."
-            disabled={isPending}
-            className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
-          />
+          <div className="flex-1 relative">
+            <input
+              type="text"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              placeholder="Ask about sections, deductions, forms..."
+              disabled={isPending}
+              className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-600 text-sm focus:outline-none focus:border-indigo-500/50 disabled:opacity-50"
+            />
+            {question.length > 0 && question.length < MIN_CHARS && (
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-amber-400">
+                {MIN_CHARS - question.length} more chars
+              </span>
+            )}
+          </div>
           <motion.button
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             type="submit"
-            disabled={!question.trim() || isPending}
+            disabled={question.trim().length < MIN_CHARS || isPending}
             className="flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-white bg-gradient-to-r from-indigo-600 to-violet-600 disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-indigo-500/30 transition-all"
           >
             {isPending ? <Loader className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
