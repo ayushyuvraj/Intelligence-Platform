@@ -47,7 +47,7 @@ export const useApiKeyStore = create<ApiKeyStore>()(
     }),
     {
       name: 'api-key-store',
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => localStorage),
     }
   )
 )

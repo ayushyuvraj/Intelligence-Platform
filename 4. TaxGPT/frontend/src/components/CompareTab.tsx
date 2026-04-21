@@ -11,7 +11,7 @@ import {
   type SectionListItem,
 } from '../hooks/useCompare'
 import { useMappingAll } from '../hooks/useMapper'
-import { CategoryBento } from './CategoryBento'
+import { CategoryBento, type CatConfig } from './CategoryBento'
 import type { MappingEntry } from '../lib/types'
 
 // ─── Searchable dropdown ──────────────────────────────────────────────────────
@@ -440,6 +440,9 @@ export function CompareTab() {
   const [mapperMode, setMapperMode] = useState(false)
   const [mapperSearch, setMapperSearch] = useState('')
   const [selectedEntry, setSelectedEntry] = useState<MappingEntry | null>(null)
+  const [activeCatId, setActiveCatId] = useState<string | null>(null)
+  const [activeCatEntries, setActiveCatEntries] = useState<MappingEntry[]>([])
+  const [activeCatCfg, setActiveCatCfg] = useState<CatConfig | null>(null)
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
@@ -501,6 +504,19 @@ export function CompareTab() {
     setDropdownOpen(false)
   }
 
+  const handleBentoCategoryClick = (catId: string, entries: MappingEntry[], cfg: CatConfig) => {
+    if (activeCatId === catId) {
+      setActiveCatId(null)
+      setActiveCatEntries([])
+      setActiveCatCfg(null)
+    } else {
+      setActiveCatId(catId)
+      setActiveCatEntries(entries)
+      setActiveCatCfg(cfg)
+      setSelectedEntry(null)
+    }
+  }
+
   const entryLabel = (entry: MappingEntry) => {
     if (entry.type === 'section') return `§${entry.old_section} — ${entry.title_old}`
     if (entry.type === 'concept') return `${entry.old_concept} → ${entry.new_concept}`
@@ -539,12 +555,14 @@ export function CompareTab() {
           )}
 
           {/* Section Mapper checkbox */}
-          <label className="flex items-center gap-2 cursor-pointer group select-none">
+          <label
+            className="flex items-center gap-2 cursor-pointer group select-none"
+            onClick={() => {
+              setMapperMode(m => !m)
+              if (!mapperMode) setTimeout(() => searchInputRef.current?.focus(), 100)
+            }}
+          >
             <div
-              onClick={() => {
-                setMapperMode(m => !m)
-                if (!mapperMode) setTimeout(() => searchInputRef.current?.focus(), 100)
-              }}
               className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-all duration-200 ${
                 mapperMode
                   ? 'border-indigo-500 bg-indigo-500'
@@ -560,6 +578,7 @@ export function CompareTab() {
                 </motion.svg>
               )}
             </div>
+
             <span className="flex items-center gap-1.5 text-xs text-white/50 group-hover:text-white/70 transition-colors">
               <Map className="h-3.5 w-3.5" />
               Section Mapper
@@ -703,7 +722,41 @@ export function CompareTab() {
                   </AnimatePresence>
 
                   {/* Category bento grid */}
-                  <CategoryBento entries={allMappings} onSelectEntry={handleBentoSelect} />
+                  <CategoryBento
+                    entries={allMappings}
+                    onCategoryClick={handleBentoCategoryClick}
+                    activeCatId={activeCatId}
+                  />
+
+                  {/* Pills for active category */}
+                  <AnimatePresence>
+                    {activeCatId && activeCatEntries.length > 0 && activeCatCfg && (
+                      <motion.div
+                        key={`pills-${activeCatId}`}
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: 'auto' }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden"
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: activeCatCfg.color }}>
+                          {activeCatCfg.label} · {activeCatEntries.length} entries
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {activeCatEntries.map(entry => (
+                            <button
+                              key={entry.key}
+                              onClick={() => handleBentoSelect(entry)}
+                              className="px-2.5 py-1 rounded-lg text-[11px] font-medium transition-all hover:opacity-90 text-left truncate max-w-[240px]"
+                              style={{ background: `${activeCatCfg.color}18`, color: activeCatCfg.color, border: `1px solid ${activeCatCfg.color}30` }}
+                              title={entryLabel(entry)}
+                            >
+                              {entryLabel(entry)}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </motion.div>
               )}
             </AnimatePresence>
@@ -799,12 +852,6 @@ export function CompareTab() {
                 loading={isLoading}
                 accentColor="#f59e0b"
                 title={result?.mapping?.title_old}
-              />
-              <div
-                className="absolute left-1/2 top-0 bottom-0 w-px pointer-events-none"
-                style={{
-                  background: 'linear-gradient(to bottom, transparent, rgba(99,102,241,0.3) 20%, rgba(245,158,11,0.3) 80%, transparent)',
-                }}
               />
               <TextPanel
                 act="2025"
